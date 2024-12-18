@@ -27,7 +27,8 @@ def generate_predictions():
     for idx, images in enumerate(test_loader):
         images = images.to(DEVICE)
         with torch.no_grad():
-            outputs = torch.sigmoid(model(images))
+            seg_output, _ = model(images)  # Unpack the outputs
+            outputs = torch.sigmoid(seg_output)  # Apply sigmoid only to the segmentation output
         preds = (outputs > 0.5).float()  # Threshold predictions
 
         # Save predictions for the current batch
