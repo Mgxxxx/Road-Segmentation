@@ -2,7 +2,7 @@ import time
 import torch
 import os
 from src.dataloader import get_dataloaders
-from src.model import SPINRoadMapperFCN8
+from SPIN.model import SPINRoadMapperFCN8
 from src.config import DEVICE, EPOCHS, LEARNING_RATE, PATIENCE, BATCH_SIZE
 import torch.optim as optim
 import torch.nn as nn

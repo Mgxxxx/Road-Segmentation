@@ -1,4 +1,4 @@
-from src.model import SPINRoadMapperFCN8
+from SPIN.model import SPINRoadMapperFCN8
 from src.dataloader import RoadSegmentationDataset
 from src.config import DEVICE, TEST_IMAGES_PATH
 from torch.utils.data import DataLoader
