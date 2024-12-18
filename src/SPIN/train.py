@@ -1,13 +1,15 @@
+import platform
 import time
 import torch
 import os
-from src.dataloader import get_dataloaders
-from SPIN.model import SPINRoadMapperFCN8
+from src.SPIN.model import SPINRoadMapperFCN8
+from src.SPIN.dataloader import get_dataloaders
 from src.config import DEVICE, EPOCHS, LEARNING_RATE, PATIENCE, BATCH_SIZE
 import torch.optim as optim
 import torch.nn as nn
 
-torch.mps.empty_cache()
+if os.name == 'posix' and platform.system() == 'Darwin':
+    torch.mps.empty_cache()
 
 class EarlyStopping:
     def __init__(self, patience=PATIENCE, min_delta=0.001):
@@ -29,7 +31,7 @@ from torch.nn import MSELoss
 
 def train_model():
     # Data loaders
-    train_loader, val_loader = get_dataloaders(batch_size=BATCH_SIZE)
+    train_loader, val_loader, test_loader = get_dataloaders(batch_size=BATCH_SIZE)
 
     # Model, optimizer, loss
     model = SPINRoadMapperFCN8().to(DEVICE)
