@@ -16,6 +16,6 @@ MODEL_PATH = "models/"
 BATCH_SIZE = 8
 LEARNING_RATE = 1e-4
 PATIENCE = 5
-EPOCHS = 2
+EPOCHS = 50
 DEVICE = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {DEVICE}")

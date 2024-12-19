@@ -12,13 +12,16 @@ def train(modelName):
     model_unet = RoadModel("Unet", "resnet50", in_channels=3, out_classes=1)
 
     model_unet_pretrained = RoadModel("Unet", "resnet50", in_channels=3, out_classes=1, encoder_weights="imagenet")
-
+    model_unet_plus_pretrained = RoadModel("UnetPlusPlus", "resnet50", in_channels=3, out_classes=1, encoder_weights="imagenet")    
+    
     if modelName == "FPN":
         model = model_fpn
     elif modelName == "UNET":
         model = model_unet
     elif modelName == "UNET_PRETRAINED":
         model = model_unet_pretrained
+    elif modelName == "UNET_PLUS_PRETRAINED":
+        model = model_unet_plus_pretrained
     else:
         raise ValueError("Invalid model name")
         

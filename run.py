@@ -24,8 +24,8 @@ if __name__ == "__main__":
         predict_show_image(model)
         # test_predictions(model)
     elif model == 'SMP':
-        model_name = 'UNET_PRETRAINED'
-        
+        model_name = 'DEEPLABV3PLUS_PRETRAINED'
+    
         # train_model_SMP(model_name)
         show_validation_inferences_SMP(model_name)
         # get_predictions_SMP(model_name)
