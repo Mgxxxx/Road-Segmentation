@@ -5,9 +5,8 @@ TRAIN_MASKS_PATH = DATA_PATH + "training/groundtruth/"
 TEST_IMAGES_PATH = DATA_PATH + "test_set_images/"
 
 # Hyperparameters
-BATCH_SIZE = 8
+BATCH_SIZE = 16
 LEARNING_RATE = 1e-4
-PATIENCE = 5
-EPOCHS = 30
+EPOCHS = 50
 DEVICE = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 print(f"Using device: {DEVICE}")
