@@ -43,7 +43,7 @@ def validate_model(model, val_loader, criterion):
 
 def train_model():
     # Data loaders
-    train_loader, val_loader = get_dataloaders(batch_size=BATCH_SIZE)
+    train_loader, _, val_loader = get_dataloaders(batch_size=BATCH_SIZE)
 
     # Model, optimizer, loss, scheduler, and early stopping
     model = MODEL.to(DEVICE)

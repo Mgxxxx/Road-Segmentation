@@ -3,8 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models.segmentation import fcn_resnet50
 from torchvision.models.segmentation import FCN_ResNet50_Weights
-from torchvision.models.segmentation import deeplabv3_resnet101
-from torchvision.models.segmentation import DeepLabV3_ResNet101_Weights
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -174,42 +172,6 @@ class SPINRoadMapperFCN8(nn.Module):
 
     
 
-class SPINRoadMapperDeepLab(nn.Module):
-    def __init__(self):
-        super(SPINRoadMapperDeepLab, self).__init__()
-        # Load pretrained FCN-8 backbone
-        deeplab = deeplabv3_resnet101(weights=DeepLabV3_ResNet101_Weights)
-        self.backbone = deeplab.backbone  # Use FCN's ResNet50 encoder
-        
-        # FPN Decoder - Expecting only the 'out' and 'aux' features
-        self.fpn_decoder = FPNDecoder(in_channels_list=[2048, 1024], out_channels=256)
-        
-        # SPIN Pyramid
-        self.spin_pyramid = SPINPyramid(in_channels=256)
-
-        # Segmentation head
-        self.segmentation_head = nn.Conv2d(256, 1, kernel_size=1)
-
-    def forward(self, x):
-        # Extract features
-        features = self.backbone(x)
-        
-        # FPN Decoder takes 'out' and 'aux' feature maps
-        fpn_features = self.fpn_decoder([features['out'], features['aux']])
-        
-        # Sum up FPN outputs to combine multi-scale features
-        combined_features = torch.sum(torch.stack(fpn_features), dim=0)
-        
-        # SPIN Pyramid for multi-scale reasoning
-        spin_out = self.spin_pyramid(combined_features)
-
-        # Final segmentation output
-        output = self.segmentation_head(spin_out)
-        
-        # Upsample output to match input size
-        output = F.interpolate(output, size=x.shape[2:], mode="bilinear", align_corners=True)
-
-        return output
         
     
 

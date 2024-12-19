@@ -41,8 +41,14 @@ def get_dataloaders(batch_size):
         RoadSegmentationDataset(TRAIN_IMAGES_PATH, TRAIN_MASKS_PATH),
         batch_size=batch_size, shuffle=True
     )
+
+    val_loader = DataLoader(
+    RoadSegmentationDataset(TRAIN_IMAGES_PATH, TRAIN_MASKS_PATH),  # Validation needs masks
+    batch_size=batch_size, shuffle=False
+    )
+    
     test_loader = DataLoader(
         RoadSegmentationDataset(TEST_IMAGES_PATH),
         batch_size=batch_size, shuffle=False
     )
-    return train_loader, test_loader
+    return train_loader, test_loader, val_loader
