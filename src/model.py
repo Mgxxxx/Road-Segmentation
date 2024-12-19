@@ -4,7 +4,6 @@ import torch.nn.functional as F
 from torchvision.models.segmentation import fcn_resnet50
 from torchvision.models.segmentation import FCN_ResNet50_Weights
 import timm
-from torchvision.models.segmentation import deeplabv3_resnet101, DeepLabV3_ResNet101_Weights
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -38,34 +37,6 @@ class SPINModule(nn.Module):
         spatial_out = spatial_out * attn_map
         return spatial_out + interaction_out
 
-
-class SPINRoadMapperDeepLab(nn.Module):
-    def __init__(self):
-        super(SPINRoadMapperDeepLab, self).__init__()
-        # DeepLabV3+ Model with ResNet101 backbone
-        self.deeplab = smp.DeepLabV3Plus(
-            encoder_name="resnet101",    # Backbone: ResNet101
-            encoder_weights="imagenet",  # Use pretrained weights
-            in_channels=3,               # Input RGB images
-            classes=1,                   # Single-class segmentation (roads)
-            activation=None              # Raw logits
-        )
-
-        # SPIN Module for multi-scale reasoning
-        self.spin_module = SPINModule(in_channels=256)
-
-    def forward(self, x):
-        # Pass input through DeepLabV3+ encoder-decoder
-        features = self.deeplab.encoder(x)
-        decoder_output = self.deeplab.decoder(*features)
-
-        # Apply SPIN Module on decoder output
-        spin_output = self.spin_module(decoder_output)
-
-        # Final segmentation output
-        logits = self.deeplab.segmentation_head(spin_output)
-        output = F.interpolate(logits, size=x.shape[2:], mode="bilinear", align_corners=True)
-        return output
 
 class SPINPyramid(nn.Module):
     def __init__(self, in_channels):
@@ -129,9 +100,8 @@ class FPNDecoder(nn.Module):
             last_inner = F.interpolate(last_inner, size=lateral.shape[2:], mode="nearest") + lateral
             outputs.insert(0, self.output_convs[i](last_inner))  # Refine and store output
 
-
-
         return outputs  # Multi-scale feature maps (FPN output)
+
 
 
 class SPINRoadMapperFCN8(nn.Module):
@@ -170,6 +140,68 @@ class SPINRoadMapperFCN8(nn.Module):
         output = F.interpolate(output, size=x.shape[2:], mode="bilinear", align_corners=True)
 
         return output
+    
+
+
+class SPINRoadMapperDeepLab(nn.Module):
+    def __init__(self):
+        super(SPINRoadMapperDeepLab, self).__init__()
+        # DeepLabV3+ Model with ResNet101 backbone
+        self.deeplab = smp.DeepLabV3Plus(
+            encoder_name="resnet101",    # Backbone: ResNet101
+            encoder_weights="imagenet",  # Use pretrained weights
+            in_channels=3,               # Input RGB images
+            classes=1,                   # Single-class segmentation (roads)
+            activation=None              # Raw logits
+        )
+
+        # SPIN Module for multi-scale reasoning
+        self.spin_module = SPINModule(in_channels=256)
+
+    def forward(self, x):
+        # Pass input through DeepLabV3+ encoder-decoder
+        features = self.deeplab.encoder(x)
+        decoder_output = self.deeplab.decoder(*features)
+
+        # Apply SPIN Module on decoder output
+        spin_output = self.spin_module(decoder_output)
+
+        # Final segmentation output
+        logits = self.deeplab.segmentation_head(spin_output)
+        output = F.interpolate(logits, size=x.shape[2:], mode="bilinear", align_corners=True)
+        return output
+    
+
+
+class SPINRoadMapperUnetPlus(nn.Module):
+    def __init__(self):
+        super(SPINRoadMapperUnetPlus, self).__init__()
+        # DeepLabV3+ Model with ResNet101 backbone
+        self.unetplus = smp.UnetPlusPlus(
+            encoder_name="resnet34",    # Backbone: ResNet101
+            encoder_weights="imagenet",  # Use pretrained weights
+            in_channels=3,               # Input RGB images
+            classes=1,                   # Single-class segmentation (roads)
+            activation=None              # Raw logits
+        )
+
+        # SPIN Module for multi-scale reasoning
+        self.spin_module = SPINModule(in_channels=256)
+
+    def forward(self, x):
+        # Pass input through DeepLabV3+ encoder-decoder
+        features = self.unetplus.encoder(x)
+        decoder_output = self.unetplus.decoder(*features)
+
+        # Apply SPIN Module on decoder output
+        spin_output = self.spin_module(decoder_output)
+
+        # Final segmentation output
+        logits = self.unetplus.segmentation_head(spin_output)
+        output = F.interpolate(logits, size=x.shape[2:], mode="bilinear", align_corners=True)
+        return output    
+ 
+    
 
 class SPINRoadMapperTimm(nn.Module):
     def __init__(self, backbone_name="efficientnet_b3", out_channels=256):

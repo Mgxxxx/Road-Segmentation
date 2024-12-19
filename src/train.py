@@ -2,10 +2,13 @@ import time
 import torch
 import os
 from src.dataloader import get_dataloaders
-from src.model import SPINRoadMapperFCN8, SPINRoadMapperTimm, SPINRoadMapperDeepLab
-from src.config import DEVICE, EPOCHS, LEARNING_RATE
+from src.model import SPINRoadMapperFCN8, SPINRoadMapperTimm, SPINRoadMapperDeepLab, SPINRoadMapperUnetPlus
+from src.config import DEVICE, EPOCHS, LEARNING_RATE, BATCH_SIZE
 import torch.optim as optim
 import torch.nn as nn
+
+MODEL = SPINRoadMapperUnetPlus().to(DEVICE)
+
 
 class EarlyStopping:
     def __init__(self, patience=5, min_delta=0.001):
@@ -25,10 +28,10 @@ class EarlyStopping:
 
 def train_model():
     # Data loaders
-    train_loader, val_loader = get_dataloaders(batch_size=8)
+    train_loader, val_loader = get_dataloaders(batch_size=BATCH_SIZE)
 
     # Model, optimizer, loss
-    model = SPINRoadMapperDeepLab().to(DEVICE)
+    model = MODEL
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.BCEWithLogitsLoss()
 
