@@ -3,6 +3,7 @@ import torch
 import matplotlib.pyplot as plt
 from torchvision import transforms
 from tqdm import tqdm
+import albumentations as A
 
 
 from src.SMP_ARCHITECTURES.model import RoadModel
@@ -13,6 +14,7 @@ from src.config import BATCH_SIZE, DEVICE, MODEL_PATH, PREDICTION_PATH
 def show_validation_inferences(model_name):
     model = RoadModel("Unet", "resnet50", in_channels=3, out_classes=1)
     model_path = os.path.join(MODEL_PATH, f"SMP_model_{model_name}.pth")
+    
     model.load_state_dict(torch.load(model_path))
     
     train_loader, val_loader, test_loader = get_dataloaders(batch_size=BATCH_SIZE)
@@ -51,9 +53,9 @@ def get_predictions(model_name):
     model = RoadModel("Unet", "resnet50", in_channels=3, out_classes=1)
     model_path = os.path.join(MODEL_PATH, f"SMP_model_{model_name}.pth")
 
-    model.load_state_dict(torch.load(model_path, DEVICE))
+    model.load_state_dict(torch.load(model_path, DEVICE), strict=False)
     
-    train_loader, val_loader, test_loader = get_dataloaders(batch_size=BATCH_SIZE)
+    train_loader, val_loader, test_loader = get_dataloaders(batch_size=1)
     
     # Directory to save predictions
     predict_dir_path = os.path.join(PREDICTION_PATH, model_name)
@@ -79,7 +81,7 @@ def get_predictions(model_name):
 
         # Extract the first mask and move to CPU
         pr_mask = pr_masks[0].squeeze(0).cpu().detach()
-
+        
         # Resize mask to (608, 608)
         pr_mask = resize_transform(pr_mask.unsqueeze(0))  # Add channel for Resize
         pr_mask = pr_mask.squeeze(0)  # Remove extra dimension

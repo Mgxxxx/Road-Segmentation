@@ -67,6 +67,7 @@ class testDataset(Dataset):
     
     def __getitem__(self, idx):
         image = np.array(Image.open(self.images[idx]).convert("RGB"))
+        image = (image / 255.0).astype(np.float32)
         
         if self.transform:
             transformed = self.transform(image=image)

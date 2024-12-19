@@ -20,8 +20,6 @@ def train(modelName):
         model = model_unet
     elif modelName == "UNET_PRETRAINED":
         model = model_unet_pretrained
-    elif modelName == "UNET_PLUS_PRETRAINED":
-        model = model_unet_plus_pretrained
     else:
         raise ValueError("Invalid model name")
         
