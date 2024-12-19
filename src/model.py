@@ -105,8 +105,8 @@ class SPINRoadMapper(nn.Module):
     def __init__(self, model_func, weights, num_classes=1):
         super(SPINRoadMapper, self).__init__()
         # Load pretrained backbone model
-        self.model = model_func(weights=weights)
-        self.backbone = nn.Sequential(*list(self.model.backbone.children()))
+        model = model_func(weights=weights)
+        self.backbone = model.backbone
         
         # Assuming the 'out' channel sizes for FCN and Deeplab are similar
         # This could be made more dynamic by examining the backbone's output features
@@ -116,13 +116,12 @@ class SPINRoadMapper(nn.Module):
         # Decoder and other modules need to be adjusted based on actual usage and outputs
         self.decoder = FPNDecoder(in_channels_list=[out_channels, aux_channels], out_channels=256)
         self.spin_pyramid = SPINPyramid(in_channels=256)
-        self.segmentation_head = nn.Conv2d(256, num_classes, kernel_size=1)
+        self.segmentation_head = nn.Conv2d(256, 1, kernel_size=1)
 
     def forward(self, x):
-        input_features = self.backbone(x)
+        features = self.backbone(x)
+        
         # Adjust this to handle different feature structures depending on the model
-        features = {'out': input_features[-1], 'aux': input_features[-2]}  # Generic example
-
         fpn_features = self.decoder([features['out'], features['aux']])
         combined_features = torch.sum(torch.stack(fpn_features), dim=0)
         spin_out = self.spin_pyramid(combined_features)
