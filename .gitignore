@@ -1,2 +1,4 @@
 results/
-dataset/
+data/
+models/
+lightning_logs/
