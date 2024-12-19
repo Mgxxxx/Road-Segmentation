@@ -5,12 +5,9 @@ from torchvision.models.segmentation import fcn_resnet50
 from torchvision.models.segmentation import FCN_ResNet50_Weights
 from torchvision.models.segmentation import deeplabv3_resnet101
 from torchvision.models.segmentation import DeepLabV3_ResNet101_Weights
-from torchvision import models
-import timm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import segmentation_models_pytorch as smp
 
 
 # SPIN Module (unchanged from your code)
@@ -106,75 +103,35 @@ class FPNDecoder(nn.Module):
 
 
 
-class GeneralizedRoadMapper(nn.Module):
-    def __init__(self, model_name='fcn_resnet50', weights=None, output_channels=1):
-        """
-        Generalized segmentation mapper with configurable backbone.
+class SPINRoadMapper(nn.Module):
+    def __init__(self, model_func, weights, num_classes=1):
+        super(SPINRoadMapper, self).__init__()
+        # Load pretrained backbone model
+        self.model = model_func(weights=weights)
+        self.backbone = nn.Sequential(*list(self.model.backbone.children()))
         
-        Args:
-            model_name (str): Name of the segmentation model (e.g., 'fcn_resnet50').
-            weights: Pretrained weights for the model (use specific torchvision weight objects or None).
-            output_channels (int): Number of output channels for the segmentation head.
-        """
-        super(GeneralizedRoadMapper, self).__init__()
-        
-        # Dynamically load the model based on the given name
-        model_constructor = getattr(models.segmentation, model_name)
-        self.model = model_constructor(weights=weights)
-        
-        # Use the backbone from the loaded model
-        self.backbone = self.model.backbone
-        
-        # Create an FPN decoder based on backbone feature sizes
-        self.fpn_decoder = FPNDecoder(
-            in_channels_list=self._get_in_channels_list(),
-            out_channels=256
-        )
-        
-        # SPIN Pyramid for multi-scale reasoning
+        # Assuming the 'out' channel sizes for FCN and Deeplab are similar
+        # This could be made more dynamic by examining the backbone's output features
+        out_channels = 2048  # Typically for ResNet50
+        aux_channels = 1024  # Typically the second last block of features
+
+        # Decoder and other modules need to be adjusted based on actual usage and outputs
+        self.decoder = FPNDecoder(in_channels_list=[out_channels, aux_channels], out_channels=256)
         self.spin_pyramid = SPINPyramid(in_channels=256)
-
-        # Segmentation head
-        self.segmentation_head = nn.Conv2d(256, output_channels, kernel_size=1)
-
-    def _get_in_channels_list(self):
-        """
-        Extracts in_channels_list for the FPNDecoder from the backbone.
-        """
-        # Assumes feature channels are known; adapt this for other backbones if needed.
-        # Example for ResNet: Extracts layer4 (2048), layer3 (1024), etc.
-        feature_channels = {
-            'resnet50': [2048, 1024],
-            'resnet101': [2048, 1024],
-        }
-        backbone_name = self.backbone.__class__.__name__.lower()
-        if 'resnet50' in backbone_name:
-            return feature_channels['resnet50']
-        elif 'resnet101' in backbone_name:
-            return feature_channels['resnet101']
-        else:
-            raise NotImplementedError(f"Feature extraction not implemented for {backbone_name}")
+        self.segmentation_head = nn.Conv2d(256, num_classes, kernel_size=1)
 
     def forward(self, x):
-        # Extract features from the backbone
-        features = self.backbone(x)
-        
-        # Extract only the 'out' and 'aux' features for FPN
-        fpn_features = self.fpn_decoder([features['out'], features['aux']])
-        
-        # Combine multi-scale features
+        input_features = self.backbone(x)
+        # Adjust this to handle different feature structures depending on the model
+        features = {'out': input_features[-1], 'aux': input_features[-2]}  # Generic example
+
+        fpn_features = self.decoder([features['out'], features['aux']])
         combined_features = torch.sum(torch.stack(fpn_features), dim=0)
-        
-        # Apply SPIN Pyramid for enhanced reasoning
         spin_out = self.spin_pyramid(combined_features)
-
-        # Final segmentation output
         output = self.segmentation_head(spin_out)
+        output = F.interpolate(output, size=x.shape[2:], mode='bilinear', align_corners=True)
         
-        # Upsample to input size
-        output = F.interpolate(output, size=x.shape[2:], mode="bilinear", align_corners=True)
-
-        return output        
+        return output  
 
 
 
@@ -256,41 +213,6 @@ class SPINRoadMapperDeepLab(nn.Module):
         
     
 
-class SPINRoadMapperDeepLabPlus(nn.Module):
-    def __init__(self):
-        super(SPINRoadMapperDeepLabPlus, self).__init__()
-        # DeepLabV3+ Model with ResNet101 backbone
-        self.deeplab = smp.DeepLabV3Plus(
-            encoder_name="resnet101",    # Backbone: ResNet101
-            encoder_weights="imagenet",  # Use pretrained weights
-            in_channels=3,               # Input RGB images
-            classes=1,                   # Single-class segmentation (roads)
-            activation=None              # Raw logits
-        )
-
-        # SPIN Module for multi-scale reasoning
-        self.spin_module = SPINModule(in_channels=256)
-
-    def forward(self, x):
-        # Extract features
-        features = self.backbone(x)
-        
-        # FPN Decoder takes 'out' and 'aux' feature maps
-        fpn_features = self.fpn_decoder([features['out'], features['aux']])
-        
-        # Sum up FPN outputs to combine multi-scale features
-        combined_features = torch.sum(torch.stack(fpn_features), dim=0)
-        
-        # SPIN Pyramid for multi-scale reasoning
-        spin_out = self.spin_pyramid(combined_features)
-
-        # Final segmentation output
-        output = self.segmentation_head(spin_out)
-        
-        # Upsample output to match input size
-        output = F.interpolate(output, size=x.shape[2:], mode="bilinear", align_corners=True)
-
-        return output
     
     
     

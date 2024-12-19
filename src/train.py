@@ -2,12 +2,10 @@ import time
 import torch
 import os
 from src.dataloader import get_dataloaders
-from src.model import SPINRoadMapperFCN8, SPINRoadMapperDeepLab, SPINRoadMapperDeepLabPlus
-from src.config import DEVICE, EPOCHS, LEARNING_RATE, BATCH_SIZE
+from src.model import SPINRoadMapper
+from src.config import DEVICE, EPOCHS, LEARNING_RATE, BATCH_SIZE, MODEL
 import torch.optim as optim
 import torch.nn as nn
-
-MODEL = SPINRoadMapperDeepLab().to(DEVICE)
 
 
 class EarlyStopping:
@@ -48,7 +46,7 @@ def train_model():
     train_loader, val_loader = get_dataloaders(batch_size=BATCH_SIZE)
 
     # Model, optimizer, loss, scheduler, and early stopping
-    model = MODEL
+    model = MODEL.to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.BCEWithLogitsLoss()
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=3, factor=0.5, verbose=True)

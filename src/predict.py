@@ -1,18 +1,18 @@
-from src.model import SPINRoadMapperFCN8, SPINRoadMapperDeepLab
+
 from src.dataloader import RoadSegmentationDataset
 from src.config import DEVICE, TEST_IMAGES_PATH
 from torch.utils.data import DataLoader
 import torch
 import os
 import torchvision.transforms.functional as TF
-from src.config import BATCH_SIZE
+from src.config import BATCH_SIZE, MODEL
 
-MODEL = SPINRoadMapperDeepLab().to(DEVICE)
+
 
 
 def generate_predictions():
     # Load model
-    model = MODEL
+    model = MODEL.to(DEVICE)
     model.load_state_dict(torch.load("results/current/checkpoints/model.pth"))
     model.eval()
 
