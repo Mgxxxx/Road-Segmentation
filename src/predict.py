@@ -1,4 +1,4 @@
-from src.model import SPINRoadMapperFCN8, SPINRoadMapperDeepLab, SPINRoadMapperUnetPlus
+from src.model import SPINRoadMapperFCN8, SPINRoadMapperDeepLab
 from src.dataloader import RoadSegmentationDataset
 from src.config import DEVICE, TEST_IMAGES_PATH
 from torch.utils.data import DataLoader
@@ -7,7 +7,7 @@ import os
 import torchvision.transforms.functional as TF
 from src.config import BATCH_SIZE
 
-MODEL = SPINRoadMapperUnetPlus().to(DEVICE)
+MODEL = SPINRoadMapperDeepLab().to(DEVICE)
 
 
 def generate_predictions():

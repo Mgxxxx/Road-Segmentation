@@ -3,13 +3,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models.segmentation import fcn_resnet50
 from torchvision.models.segmentation import FCN_ResNet50_Weights
+from torchvision.models.segmentation import deeplabv3_resnet101
+from torchvision.models.segmentation import DeepLabV3_ResNet101_Weights
+from torchvision import models
 import timm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import segmentation_models_pytorch as smp
 
-fcn = fcn_resnet50(weights=FCN_ResNet50_Weights.DEFAULT)
 
 # SPIN Module (unchanged from your code)
 class SPINModule(nn.Module):
@@ -104,6 +106,78 @@ class FPNDecoder(nn.Module):
 
 
 
+class GeneralizedRoadMapper(nn.Module):
+    def __init__(self, model_name='fcn_resnet50', weights=None, output_channels=1):
+        """
+        Generalized segmentation mapper with configurable backbone.
+        
+        Args:
+            model_name (str): Name of the segmentation model (e.g., 'fcn_resnet50').
+            weights: Pretrained weights for the model (use specific torchvision weight objects or None).
+            output_channels (int): Number of output channels for the segmentation head.
+        """
+        super(GeneralizedRoadMapper, self).__init__()
+        
+        # Dynamically load the model based on the given name
+        model_constructor = getattr(models.segmentation, model_name)
+        self.model = model_constructor(weights=weights)
+        
+        # Use the backbone from the loaded model
+        self.backbone = self.model.backbone
+        
+        # Create an FPN decoder based on backbone feature sizes
+        self.fpn_decoder = FPNDecoder(
+            in_channels_list=self._get_in_channels_list(),
+            out_channels=256
+        )
+        
+        # SPIN Pyramid for multi-scale reasoning
+        self.spin_pyramid = SPINPyramid(in_channels=256)
+
+        # Segmentation head
+        self.segmentation_head = nn.Conv2d(256, output_channels, kernel_size=1)
+
+    def _get_in_channels_list(self):
+        """
+        Extracts in_channels_list for the FPNDecoder from the backbone.
+        """
+        # Assumes feature channels are known; adapt this for other backbones if needed.
+        # Example for ResNet: Extracts layer4 (2048), layer3 (1024), etc.
+        feature_channels = {
+            'resnet50': [2048, 1024],
+            'resnet101': [2048, 1024],
+        }
+        backbone_name = self.backbone.__class__.__name__.lower()
+        if 'resnet50' in backbone_name:
+            return feature_channels['resnet50']
+        elif 'resnet101' in backbone_name:
+            return feature_channels['resnet101']
+        else:
+            raise NotImplementedError(f"Feature extraction not implemented for {backbone_name}")
+
+    def forward(self, x):
+        # Extract features from the backbone
+        features = self.backbone(x)
+        
+        # Extract only the 'out' and 'aux' features for FPN
+        fpn_features = self.fpn_decoder([features['out'], features['aux']])
+        
+        # Combine multi-scale features
+        combined_features = torch.sum(torch.stack(fpn_features), dim=0)
+        
+        # Apply SPIN Pyramid for enhanced reasoning
+        spin_out = self.spin_pyramid(combined_features)
+
+        # Final segmentation output
+        output = self.segmentation_head(spin_out)
+        
+        # Upsample to input size
+        output = F.interpolate(output, size=x.shape[2:], mode="bilinear", align_corners=True)
+
+        return output        
+
+
+
 class SPINRoadMapperFCN8(nn.Module):
     def __init__(self):
         super(SPINRoadMapperFCN8, self).__init__()
@@ -140,12 +214,51 @@ class SPINRoadMapperFCN8(nn.Module):
         output = F.interpolate(output, size=x.shape[2:], mode="bilinear", align_corners=True)
 
         return output
-    
 
+    
 
 class SPINRoadMapperDeepLab(nn.Module):
     def __init__(self):
         super(SPINRoadMapperDeepLab, self).__init__()
+        # Load pretrained FCN-8 backbone
+        deeplab = deeplabv3_resnet101(weights=DeepLabV3_ResNet101_Weights)
+        self.backbone = deeplab.backbone  # Use FCN's ResNet50 encoder
+        
+        # FPN Decoder - Expecting only the 'out' and 'aux' features
+        self.fpn_decoder = FPNDecoder(in_channels_list=[2048, 1024], out_channels=256)
+        
+        # SPIN Pyramid
+        self.spin_pyramid = SPINPyramid(in_channels=256)
+
+        # Segmentation head
+        self.segmentation_head = nn.Conv2d(256, 1, kernel_size=1)
+
+    def forward(self, x):
+        # Extract features
+        features = self.backbone(x)
+        
+        # FPN Decoder takes 'out' and 'aux' feature maps
+        fpn_features = self.fpn_decoder([features['out'], features['aux']])
+        
+        # Sum up FPN outputs to combine multi-scale features
+        combined_features = torch.sum(torch.stack(fpn_features), dim=0)
+        
+        # SPIN Pyramid for multi-scale reasoning
+        spin_out = self.spin_pyramid(combined_features)
+
+        # Final segmentation output
+        output = self.segmentation_head(spin_out)
+        
+        # Upsample output to match input size
+        output = F.interpolate(output, size=x.shape[2:], mode="bilinear", align_corners=True)
+
+        return output
+        
+    
+
+class SPINRoadMapperDeepLabPlus(nn.Module):
+    def __init__(self):
+        super(SPINRoadMapperDeepLabPlus, self).__init__()
         # DeepLabV3+ Model with ResNet101 backbone
         self.deeplab = smp.DeepLabV3Plus(
             encoder_name="resnet101",    # Backbone: ResNet101
@@ -159,97 +272,26 @@ class SPINRoadMapperDeepLab(nn.Module):
         self.spin_module = SPINModule(in_channels=256)
 
     def forward(self, x):
-        # Pass input through DeepLabV3+ encoder-decoder
-        features = self.deeplab.encoder(x)
-        decoder_output = self.deeplab.decoder(*features)
-
-        # Apply SPIN Module on decoder output
-        spin_output = self.spin_module(decoder_output)
-
-        # Final segmentation output
-        logits = self.deeplab.segmentation_head(spin_output)
-        output = F.interpolate(logits, size=x.shape[2:], mode="bilinear", align_corners=True)
-        return output
-    
-
-
-class SPINRoadMapperUnetPlus(nn.Module):
-    def __init__(self):
-        super(SPINRoadMapperUnetPlus, self).__init__()
-        # DeepLabV3+ Model with ResNet101 backbone
-        self.unetplus = smp.UnetPlusPlus(
-            encoder_name="resnet34",    # Backbone: ResNet101
-            encoder_weights="imagenet",  # Use pretrained weights
-            in_channels=3,               # Input RGB images
-            classes=1,                   # Single-class segmentation (roads)
-            activation=None              # Raw logits
-        )
-
-        # SPIN Module for multi-scale reasoning
-        self.spin_module = SPINModule(in_channels=256)
-
-    def forward(self, x):
-        # Pass input through DeepLabV3+ encoder-decoder
-        features = self.unetplus.encoder(x)
-        decoder_output = self.unetplus.decoder(*features)
-
-        # Apply SPIN Module on decoder output
-        spin_output = self.spin_module(decoder_output)
-
-        # Final segmentation output
-        logits = self.unetplus.segmentation_head(spin_output)
-        output = F.interpolate(logits, size=x.shape[2:], mode="bilinear", align_corners=True)
-        return output    
- 
-    
-
-class SPINRoadMapperTimm(nn.Module):
-    def __init__(self, backbone_name="efficientnet_b3", out_channels=256):
-        super(SPINRoadMapperTimm, self).__init__()
-
-        # Load the pretrained backbone from timm
-        self.backbone = timm.create_model(
-            backbone_name, 
-            pretrained=True, 
-            features_only=True, 
-            out_indices=(1, 2, 3)  # Valid indices for convnext_base
-        )
-        backbone_out_channels = self.backbone.feature_info.channels()  # Channel sizes
-
-        # FPN Decoder
-        self.fpn_decoder = FPNDecoder(
-            in_channels_list=backbone_out_channels, 
-            out_channels=out_channels
-        )
-
-        # SPIN Pyramid
-        self.spin_pyramid = SPINPyramid(in_channels=out_channels)
-
-        # Segmentation Head
-        self.segmentation_head = nn.Conv2d(out_channels, 1, kernel_size=1)
-
-    def forward(self, x):
-        # Extract features from timm backbone
+        # Extract features
         features = self.backbone(x)
-
-        # Pass features through the FPN Decoder
-        fpn_features = self.fpn_decoder(features)
-
-        # Upsample all FPN outputs to match the size of the first feature map
-        target_size = fpn_features[0].shape[2:]
-        fpn_features_resized = [
-            F.interpolate(feature, size=target_size, mode="bilinear", align_corners=True)
-            for feature in fpn_features
-        ]
-
-        # Combine resized feature maps
-        combined_features = torch.sum(torch.stack(fpn_features_resized), dim=0)
-
+        
+        # FPN Decoder takes 'out' and 'aux' feature maps
+        fpn_features = self.fpn_decoder([features['out'], features['aux']])
+        
+        # Sum up FPN outputs to combine multi-scale features
+        combined_features = torch.sum(torch.stack(fpn_features), dim=0)
+        
         # SPIN Pyramid for multi-scale reasoning
         spin_out = self.spin_pyramid(combined_features)
 
         # Final segmentation output
         output = self.segmentation_head(spin_out)
+        
+        # Upsample output to match input size
         output = F.interpolate(output, size=x.shape[2:], mode="bilinear", align_corners=True)
 
         return output
+    
+    
+    
+
