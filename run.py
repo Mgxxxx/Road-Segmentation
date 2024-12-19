@@ -1,4 +1,5 @@
 from src.UNET.train import train_model as train_model_UNET
+from src.UNET.train import train_model as train_model_UNET
 from src.SPIN.train import train_model as train_model_SPIN
 from src.SPIN.predict import generate_predictions as generate_predictions_SPIN
 from src.UNET.inference import predict_show_image, test_predictions
